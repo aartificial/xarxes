@@ -32,7 +32,7 @@
 #define PUEB_ERR "ERR\0"
 #define PUEB_COR "COR\0"
 
-#define PATH "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/llocUEB"
+#define PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/llocUEB"
 
 /* Declaració de funcions INTERNES que es fan servir en aquest fitxer     */
 /* (les  definicions d'aquestes funcions es troben més avall) per així    */

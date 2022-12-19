@@ -243,6 +243,8 @@ char* TCP_ObteMissError(void) {
 int TCP_HaArribatAlgunaCosaEnTemps(const int *LlistaSck, int LongLlistaSck, int Temps) {
     fd_set fdset;
     struct timeval select_wait; select_wait.tv_sec = Temps;
+    select_wait.tv_usec = Temps*1000;
+
     int descmax = -1;
 
     FD_ZERO(&fdset);
@@ -256,8 +258,10 @@ int TCP_HaArribatAlgunaCosaEnTemps(const int *LlistaSck, int LongLlistaSck, int 
                                  NULL,
                                  &select_wait);
     printf("[DEBUG] select() %d\n", sockets_waiting);
-    if (sockets_waiting == -1)                                  // si no hi ha cap socket esperant
+    if (sockets_waiting == -1) {
+        printf("%d", errno);
         return -1;
+    }                                 // si no hi ha cap socket esperant
 
     if (sockets_waiting == 0)
         return -2;
