@@ -6,8 +6,8 @@
 #include <stdlib.h>
 
 #define OBTENIR "obtenir"
-#define PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/recieve"
-
+//#define PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/recieve"
+#define PATH "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/recieve"
 
 
 int read_petition(struct Data *data);

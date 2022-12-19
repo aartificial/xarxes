@@ -3,11 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CONFIG_PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/ser.cfg"
-#define LOG_PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/ser.log"
-#define NOMBRECONNSMAX		4
+//#define CONFIG_PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/ser.cfg"
+//#define LOG_PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/ser.log"
+#define CONFIG_PATH "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/ser.cfg"
+#define LOG_PATH "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/ser.log"
+#define NOMBRECONNSMAX 4
 
-struct Data *structSetup();
+void structSetup(struct Data *data);
 int AfegeixSck(int Sck, int *LlistaSck, int LongLlistaSck);
 int TreuSck(int Sck, int *LlistaSck, int LongLlistaSck);
 void log_message(char *message);
@@ -20,50 +22,51 @@ void print_sockets(const int *LlistaSck) {
 }
 
 int main() {
-    struct Data *data = structSetup();
+    struct Data data;
+    structSetup(&data);
     FILE *fitxer = fopen(LOG_PATH, "w");
     fprintf(fitxer, "");
     fclose(fitxer);
 
-    int ini_s = UEBs_IniciaServ(data);
-    printf("%s\n", data->MisRes);
-    log_message(data->MisRes);
+    int ini_s = UEBs_IniciaServ(&data);
+    printf("%s\n", data.MisRes);
+    log_message(data.MisRes);
     if (ini_s != 0)
         return -1;
 
     int breakpoint = 0;
     while (!breakpoint) {
-        memset( data->NomFitx, '\0', sizeof(char)*9999 );
-        data->SckCon = UEBs_AcceptaConnexio(data);
-        printf("%s\n", data->MisRes);
-        log_message(data->MisRes);
-        if (data->SckCon < 0)
+        memset( data.NomFitx, '\0', sizeof(char)*9999 );
+        data.SckCon = UEBs_AcceptaConnexio(&data);
+        printf("%s\n", data.MisRes);
+        log_message(data.MisRes);
+        if (data.SckCon < 0)
             continue;
 
-        printf("[DEBUG] Adding socket %d.\n", data->SckCon);
-        AfegeixSck(data->SckCon, data->LlistaSck, NOMBRECONNSMAX);
-        printf("[DEBUG] Socket %d added.\n", data->SckCon);
-        print_sockets(data->LlistaSck);
+        printf("[DEBUG] Adding socket %d.\n", data.SckCon);
+        AfegeixSck(data.SckCon, data.LlistaSck, NOMBRECONNSMAX);
+        printf("[DEBUG] Socket %d added.\n", data.SckCon);
+        print_sockets(data.LlistaSck);
         printf("[DEBUG] Waiting for socket.\n");
-        data->SckCon = UEBs_HaArribatAlgunaCosa(data);
-        printf("[DEBUG] Socket recieved %d.\n", data->SckCon);
-        printf("[DEBUG] Removing socket %d.\n", data->SckCon);
-        TreuSck(data->SckCon, data->LlistaSck, NOMBRECONNSMAX);
-        printf("[DEBUG] Socket %d removed.\n", data->SckCon);
-        print_sockets(data->LlistaSck);
+        data.SckCon = UEBs_HaArribatAlgunaCosa(&data);
+        printf("[DEBUG] Socket recieved %d.\n", data.SckCon);
+        printf("[DEBUG] Removing socket %d.\n", data.SckCon);
+        TreuSck(data.SckCon, data.LlistaSck, NOMBRECONNSMAX);
+        printf("[DEBUG] Socket %d removed.\n", data.SckCon);
+        print_sockets(data.LlistaSck);
 
-        int pet_s = UEBs_ServeixPeticio(data);
-        printf("%s\n", data->MisRes);
-        log_message(data->MisRes);
+        int pet_s = UEBs_ServeixPeticio(&data);
+        printf("%s\n", data.MisRes);
+        log_message(data.MisRes);
         if (pet_s != 0) {
-            close_sck(data->SckCon);
+            close_sck(data.SckCon);
             if (pet_s == -3)
                 breakpoint = 1;
             continue;
         }
-        close_sck(data->SckCon);
+        close_sck(data.SckCon);
     }
-    close_sck(data->SckEsc);
+    close_sck(data.SckEsc);
 }
 
 void close_sck(int SckEsc) {
@@ -138,13 +141,11 @@ int TreuSck(int Sck, int *LlistaSck, int LongLlistaSck) {
     return -1;
 }
 
-struct Data *structSetup() {
-    struct Data data;
-    data.LlistaSck = malloc((sizeof *data.LlistaSck) * NOMBRECONNSMAX);
-    data.LongLlistaSck = NOMBRECONNSMAX;
-    for(int i=0; i <data.LongLlistaSck; i++){
-        data.LlistaSck[i] = -1;
+void structSetup(struct Data *data) {
+    data->LlistaSck = malloc((sizeof *data->LlistaSck) * NOMBRECONNSMAX);
+    data->LongLlistaSck = NOMBRECONNSMAX;
+    for(int i=0; i <data->LongLlistaSck; i++){
+        data->LlistaSck[i] = -1;
     }
-    read_config(&data);
-    return &data;
+    read_config(data);
 }
