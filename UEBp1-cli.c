@@ -8,7 +8,7 @@
 
 int read_petition(int *portTCPser, char *IPrem, char *NomFitx, char *message);
 void close_sck(int SckEsc);
-
+//lkjhgfd
 int main() {
     int portTCPser = 3000, portTCPcli;
     char MisRes[200], IPser[16], IPcli[16];
