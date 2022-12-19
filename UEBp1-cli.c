@@ -1,12 +1,14 @@
 #include "UEBp1-aUEBc.h"
+#include "UEBp2-aDNSc.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #define OBTENIR "obtenir"
-#define PATH "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/recieve"
+#define PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/recieve"
 
-int read_petition(int *portTCPser, char *IPrem, char *NomFitx, char *message);
+int read_petition(int *portTCPser, char *IPrem, char *NomFitx);
 void close_sck(int SckEsc);
 //lkjhgfd
 int main() {
@@ -27,9 +29,9 @@ int main() {
 
     while (1) {
         int file_size;
-        char file[9999], file_name[200], message[200], target[200];
+        char file[9999], file_name[200], target[200];
 
-        int pet_s = read_petition(&portTCPser, IPser, file_name, message);
+        int pet_s = read_petition(&portTCPser, IPser, file_name);
         if (pet_s == -1)
             continue;
         else if (pet_s == -2)
@@ -64,25 +66,32 @@ int main() {
     }
 }
 
-int read_petition(int *portTCPser, char *IPrem, char *NomFitx, char *message) {
+int read_petition(int *portTCPser, char *IPrem, char *NomFitx) {
     printf("******************************************************************\n");
-    printf("*  Introduce petition (type, server ip, server port, file name)  *");
+    printf("*  Introduce petition (URI)  *");
     printf("\n******************************************************************\n");
-    printf("Petition: "); scanf("%s%s%d%s", message, IPrem, portTCPser, NomFitx);
-
-    if (strcmp(message, "sortir") == 0)
-        return -2;
-    else if (strcmp(message, "obtenir") != 0) {
-        printf("[ER] Invalid petition.\nExample : obtenir 0.0.0.0 3000 /filename.extension\n");
-        return -1;
-    }
-
-    if (strcmp(IPrem, "0") == 0)
-        strcpy(IPrem, "0.0.0.0");
-    if (*portTCPser == 0)
+    printf("URI: ");
+    //agafo uri
+    char uri[200];
+    scanf("%s", uri);
+    printf("[DEBUG] URI rebuda: %s", uri);
+    //variables per fer sscanf
+    char esquema[100], nom_fitx[100], port_str[100], nom_host[100], TextRes[100];
+    //sscanf
+    sscanf(uri,"%[^:]://%[^:]:%[^/]%s",esquema,nom_host,port_str,nom_fitx);
+    //passar port a *int i mirar si no hi és
+    *portTCPser = atoi(port_str);
+    if (*portTCPser == 0){
         *portTCPser = 3000;
-
-    printf("Petition requested: %s @%s:#%d%s\n", message, IPrem, (*portTCPser), NomFitx);
+    }
+    //posar nom DNS i torna IP a IPrem, TextRes es un ok que dona la funcio si tot va be (ve fet)
+    if(DNSc_ResolDNSaIP(nom_host, IPrem, TextRes)!=0) {
+        printf("[ER] Error al resoldre la IP.\n");
+    }
+    printf("[DEBUG] Esquema %s.\n", esquema);
+    printf("[DEBUG] IP %s.\n", IPrem);
+    printf("[DEBUG] Port %d.\n", *portTCPser);
+    printf("[DEBUG] Text final %s.\n", nom_fitx);
     return 0;
 }
 
@@ -91,3 +100,4 @@ void close_sck(int sck) {
     UEBc_TancaConnexio(sck, MisRes);
     printf("%s\n", MisRes);
 }
+

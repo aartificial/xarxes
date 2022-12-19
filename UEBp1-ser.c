@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CONFIG_PATH "./ser.cfg"
-#define LOG_PATH "./ser.log"
+#define CONFIG_PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/ser.cfg"
+#define LOG_PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/ser.log"
 #define NOMBRECONNSMAX		4
 
 int AfegeixSck(int Sck, int *LlistaSck, int LongLlistaSck);
@@ -85,8 +85,7 @@ void log_message(char *message) {
 }
 
 void read_config(int* port, char* source) {
-    char debug_path[200] = "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/ser.cfg";
-    FILE* fitxer = fopen(debug_path, "r");
+    FILE* fitxer = fopen(CONFIG_PATH, "r");
     char data[400];
     if (fitxer != NULL) {
         fread(data, 200, 2, fitxer);
