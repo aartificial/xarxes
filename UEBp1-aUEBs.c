@@ -36,7 +36,7 @@
 #define PUEB_ERR "ERR\0"
 #define PUEB_COR "COR\0"
 
-#define PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/llocUEB"
+#define PATH "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/llocUEB"
 
 /* Declaració de funcions INTERNES que es fan servir en aquest fitxer     */
 /* (les  definicions d'aquestes funcions es troben més avall) per així    */
@@ -50,7 +50,7 @@ int RepiDesconstMis(int SckCon, char *tipus, char *info1, int *long1);
 void construct_msg(char* msg, const char* op, const char* info1, int long1);
 int deconstruct_msg(char* buffer, char* tipus, char* info1, int* long1);
 int read_source(char* NomFitx, char* info1, int* long1, char* MisRes);
-int read_file(const char *NomFitx, char *info1, int *long1, char *MisRes);
+int read_file(const char *NomFitx, char *info1, int *long1, char *MisRes, int log);
 int read_directory(const char *NomFitx, char *info1, int *long1, char *MisRes);
 int set_response_type(char *TipusPeticio, int a);
 
@@ -317,20 +317,24 @@ int read_source(char* NomFitx, char* info1, int* long1, char* MisRes) {
     }
 
     if(NomFitx[*long1-1] == '/') read_directory(NomFitx, info1, long1, MisRes);
-    else return read_file(NomFitx, info1, long1, MisRes);
+    else return read_file(NomFitx, info1, long1, MisRes, 1);
 }
 
-int read_file(const char *NomFitx, char *info1, int *long1, char *MisRes) {
+int read_file(const char *NomFitx, char *info1, int *long1, char *MisRes, int log) {
     char source[200];
     strcpy(source, PATH);
     strcat(source, NomFitx);
     FILE* file = fopen(source, "r");
 
+    printf("%s\n%s\n%d\n", NomFitx, info1, *long1);
+
     // Check file can be opened
     if (file == NULL) {
-        strcpy(MisRes, "[ER] Unable to open file.");
-        strcpy(info1, "error4");
-        *long1 = (int) strlen(info1);
+        if (log) {
+            strcpy(MisRes, "[ER] Unable to open file.");
+            strcpy(info1, "error4");
+            *long1 = (int) strlen(info1);
+        }
         return -2;
     }
 
@@ -370,8 +374,9 @@ int read_directory(const char *NomFitx, char *info1, int *long1, char *MisRes){
 
     char Nom2[200];
     strcpy(Nom2, path);
-    strcat(Nom2, "/index.html");
-    int res = read_file( Nom2, info1, long1, MisRes);
+    strcat(Nom2, "index.html");
+    printf(":AGLSFKJALSKFJ:LAKSFHJ:LAKSJF:LK\n");
+    int res = read_file( Nom2, info1, long1, MisRes, 0);
     if (res == 0)
         return res;
 
@@ -393,6 +398,10 @@ int read_directory(const char *NomFitx, char *info1, int *long1, char *MisRes){
     }
     strcat(aux, "</BODY>\n"
                 "</HTML>");
+
+    strcpy(info1, aux);
+    *long1 = strlen(aux);
+
     return 0;
 }
 

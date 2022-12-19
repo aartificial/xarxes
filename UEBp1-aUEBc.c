@@ -76,10 +76,12 @@ int UEBc_DemanaConnexio(struct Data *data) {
         strcpy(data->MisRes, "[ER] Connection refused.");
         return -1;
     }
-    if (-1 == TCP_TrobaAdrSockLoc(socket_fd, data->IPcli, &data->portTCPcli)) {
+    int transfer = 0;
+    if (-1 == TCP_TrobaAdrSockLoc(socket_fd, data->IPcli, &transfer)) {
         strcpy(data->MisRes, "[ER] Cannot find local address.");
         return -1;
     }
+    data->portTCPcli = transfer;
     sprintf(aux, "[OK] Connection established with @%d(@%s:#%d) as (@%s:#%d).", socket_fd, data->IPcli, data->portTCPcli, data->IPser, data->portTCPser);
     strcpy(data->MisRes, aux);
     return socket_fd;
@@ -117,7 +119,8 @@ int UEBc_ObteFitxer(struct Data *data) {
 
     printf("[OK] Petition sent at @%d as OBT%04d%s\n", data->sck_s, (int) strlen(data->file_name), data->file_name);
 
-    if (0 > (resposta = RepiDesconstMis(data->sck_s, tipus, data->file, &data->file_size))) {
+    int transfer = 0;
+    if (0 > (resposta = RepiDesconstMis(data->sck_s, tipus, data->file, &transfer))) {
         switch (resposta) {
             case -1: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Rebre a interface de sockets."); break;
             case -2: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Protocol incorrecte o connexio tancada.");break;
@@ -126,6 +129,7 @@ int UEBc_ObteFitxer(struct Data *data) {
         }
         return resposta;
     }
+    data->file_size = transfer;
 
     printf("[OK] Response received from @%d as: %s%04d", data->sck_s, tipus, data->file_size);
     fflush(stdout);
@@ -133,7 +137,7 @@ int UEBc_ObteFitxer(struct Data *data) {
     printf("\n");
 
     if (strcmp(tipus, PUEB_ERR) == 0) {
-        switch ((int)atoi(&data->file[5])) {
+        switch ((int)atoi((const char *) data->file[5])) {
             case  2: strcpy(data->MisRes, "[ER] Invalid petition, file name must start with '/'."); break;
             case  3: strcpy(data->MisRes, "[ER] Invalid petition, file size is too large to fit in PUEB protocol."); break;
             case  4: strcpy(data->MisRes, "[ER] Invalid petition, file is unreachable.");break;
