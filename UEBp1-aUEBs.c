@@ -382,15 +382,17 @@ int read_directory(const char *NomFitx, char *info1, int *long1, char *MisRes){
                      "<TITLE>ERROR</TITLE>\n"
                      "</HEAD>\n"
                      "<BODY>";
-    DIR *d;
-    struct dirent *dir;
-    d = opendir(NomFitx);
-    if (d) {
-        while ((dir = readdir(d)) != NULL) {
-            strcat(aux, dir->d_name);
-        }
-        closedir(d);
+
+    FILE *ls_cmd = popen("ls -l", "r");
+
+    static char buff[9999];
+
+    while ((fread(buff, 1, sizeof(buff)-1, ls_cmd)) > 0) {
+        strcpy(aux, buff);
     }
+
+    pclose(ls_cmd);
+
     strcat(aux, "</BODY>\n"
                 "</HTML>");
     return 0;
