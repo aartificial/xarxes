@@ -77,17 +77,22 @@ int read_petition(int *portTCPser, char *IPrem, char *NomFitx) {
     printf("[DEBUG] URI rebuda: %s", uri);
     //variables per fer sscanf
     char esquema[100], nom_fitx[100], port_str[100], nom_host[100], TextRes[100];
-    //sscanf
-    sscanf(uri,"%[^:]://%[^:]:%[^/]%s",esquema,nom_host,port_str,nom_fitx);
-    //passar port a *int i mirar si no hi és
-    *portTCPser = atoi(port_str);
-    if (*portTCPser == 0){
+    //sscanf, n retorna nombre de dades llegides
+    int n = sscanf(uri,"%[^:]://%[^:]:%[^/]%s",esquema,nom_host,port_str,nom_fitx);
+    //com només pot fallar port si no hi són totes port es posa al típic
+    if(n<4){
+        sscanf(uri,"%[^:]://%[^/]%s",esquema,nom_host,nom_fitx);
         *portTCPser = 3000;
+    }else{
+        //passar port a *int
+        *portTCPser = atoi(port_str);
     }
+    //PROVES
+    //pueb://localhost:3000/primera.html
+    //pueb://localhost/primera.html
     //posar nom DNS i torna IP a IPrem, TextRes es un ok que dona la funcio si tot va be (ve fet)
-    if(DNSc_ResolDNSaIP(nom_host, IPrem, TextRes)!=0) {
+    if(0!=DNSc_ResolDNSaIP(nom_host, IPrem, TextRes))
         printf("[ER] Error al resoldre la IP.\n");
-    }
     printf("[DEBUG] Esquema %s.\n", esquema);
     printf("[DEBUG] IP %s.\n", IPrem);
     printf("[DEBUG] Port %d.\n", *portTCPser);
