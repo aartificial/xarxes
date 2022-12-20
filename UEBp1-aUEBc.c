@@ -15,6 +15,7 @@
 /*   un #include del propi fitxer capçalera)                              */
 
 #include "UEBp1-tTCP.h"
+#include "UEBp1-aUEBc.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,36 +63,36 @@ int deconstruct_msg(char* buffer, char* tipus, char* info1, int* long1);
 /* Retorna:                                                               */
 /*  l'identificador del socket TCP connectat si tot va bé;                */
 /* -1 si hi ha un error a la interfície de sockets.                       */
-int UEBc_DemanaConnexio(const char *IPser, int portTCPser, char *IPcli, int *portTCPcli, char *MisRes) {
+int UEBc_DemanaConnexio(struct Data *data) {
     int socket_fd;
     char aux[200];
-    if(-1 == (socket_fd = TCP_CreaSockClient(IPcli, *portTCPcli))) {
-        strcpy(MisRes, "[ER] Unable to create socket.");
+    if(-1 == (socket_fd = TCP_CreaSockClient(data->IPcli, data->portTCPcli))) {
+        strcpy(data->MisRes, "[ER] Unable to create socket.");
         return -1;
     }
-    printf("[DEBUG] socket=%d IPser=%s portTCPser=%d\n", socket_fd, IPser, portTCPser);
-    if (-1 == (TCP_DemanaConnexio(socket_fd, IPser, portTCPser))) {
-        printf("%s:%d\n", IPser, portTCPser);
-        strcpy(MisRes, "[ER] Connection refused.");
+    printf("[DEBUG] socket=%d IPser=%s portTCPser=%d\n", socket_fd, data->IPser, data->portTCPser);
+    if (-1 == (TCP_DemanaConnexio(socket_fd, data->IPser, data->portTCPser))) {
+        printf("%s:%d\n", data->IPser, data->portTCPser);
+        strcpy(data->MisRes, "[ER] Connection refused.");
         return -1;
     }
-    if (-1 == TCP_TrobaAdrSockLoc(socket_fd, IPcli, portTCPcli)) {
-        strcpy(MisRes, "[ER] Cannot find local address.");
+    if (-1 == TCP_TrobaAdrSockLoc(socket_fd, data->IPcli, &data->portTCPcli)) {
+        strcpy(data->MisRes, "[ER] Cannot find local address.");
         return -1;
     }
-    sprintf(aux, "[OK] Connection established with @%d(@%s:#%d) as (@%s:#%d).", socket_fd, IPcli, *portTCPcli, IPser, portTCPser);
-    strcpy(MisRes, aux);
+    sprintf(aux, "[OK] Connection established with @%d(@%s:#%d) as (@%s:#%d).", socket_fd, data->IPcli, data->portTCPcli, data->IPser, data->portTCPser);
+    strcpy(data->MisRes, aux);
     return socket_fd;
 }
 
-/* Obté el fitxer de nom "NomFitx" del S UEB a través de la connexió TCP  */
-/* d'identificador "SckCon". Escriu els bytes del fitxer a "Fitx" i la    */
-/* longitud del fitxer en bytes a "LongFitx".                             */
+/* Obté el fitxer de nom "file_name" del S UEB a través de la connexió TCP  */
+/* d'identificador "sck_s". Escriu els bytes del fitxer a "file" i la    */
+/* longitud del fitxer en bytes a "file_size".                             */
 /* Escriu un missatge que descriu el resultat de la funció a "MisRes".    */
 /*                                                                        */
-/* "NomFitx" és un "string" de C (vector de chars imprimibles acabat en   */
+/* "file_name" és un "string" de C (vector de chars imprimibles acabat en   */
 /* '\0') d'una longitud <= 10000 chars (incloent '\0').                   */
-/* "Fitx" és un vector de chars (bytes) qualsevol (recordeu que en C,     */
+/* "file" és un vector de chars (bytes) qualsevol (recordeu que en C,     */
 /* un char és un enter de 8 bits) d'una longitud <= 9999 bytes.           */
 /* "MisRes" és un "string" de C (vector de chars imprimibles acabat en    */
 /* '\0') d'una longitud màxima de 200 chars (incloent '\0').              */
@@ -102,46 +103,46 @@ int UEBc_DemanaConnexio(const char *IPser, int portTCPser, char *IPcli, int *por
 /* -1 si hi ha un error a la interfície de sockets;                       */
 /* -2 si protocol és incorrecte (longitud camps, tipus de peticio, etc.); */
 /* -3 si l'altra part tanca la connexió.                                  */
-int UEBc_ObteFitxer(int SckCon, const char *NomFitx, char *Fitx, int *LongFitx, char *MisRes) {
+int UEBc_ObteFitxer(struct Data *data) {
     int resposta;
     char tipus[PUEB_TYPESIZE];
-    if ( 0 > (resposta = ConstiEnvMis(SckCon, PUEB_OBT, NomFitx, (int)strlen(NomFitx)))) {
+    if ( 0 > (resposta = ConstiEnvMis(data->sck_s, PUEB_OBT, data->file_name, (int)strlen(data->file_name)))) {
         switch (resposta) {
-            case -1: strcpy(MisRes, "[ER] UEBc_ObteFitxer >>> Enviar a interface de sockets."); break;
-            case -2: strcpy(MisRes, "[ER] UEBc_ObteFitxer >>> Protocol incorrecte.");break;
-            default: strcpy(MisRes, "[ER] UEBc_ObteFitxer >>> Desconegut ENV.");
+            case -1: strcpy(data->MisRes, "[ER] UEBc_ObteFitxer >>> Enviar a interface de sockets."); break;
+            case -2: strcpy(data->MisRes, "[ER] UEBc_ObteFitxer >>> Protocol incorrecte.");break;
+            default: strcpy(data->MisRes, "[ER] UEBc_ObteFitxer >>> Desconegut ENV.");
         }
         return resposta;
     }
 
-    printf("[OK] Petition sent at @%d as OBT%04d%s\n", SckCon, (int) strlen(NomFitx), NomFitx);
+    printf("[OK] Petition sent at @%d as OBT%04d%s\n", data->sck_s, (int) strlen(data->file_name), data->file_name);
 
-    if (0 > (resposta = RepiDesconstMis(SckCon, tipus, Fitx, LongFitx))) {
+    if (0 > (resposta = RepiDesconstMis(data->sck_s, tipus, data->file, &data->file_size))) {
         switch (resposta) {
-            case -1: strcpy(MisRes, "\n[ER] UEBc_ObteFitxer >>> Rebre a interface de sockets."); break;
-            case -2: strcpy(MisRes, "\n[ER] UEBc_ObteFitxer >>> Protocol incorrecte o connexio tancada.");break;
-            case -3: strcpy(MisRes, "\n[ER] UEBc_ObteFitxer >>> Connexio tancada.");break;
-            default: strcpy(MisRes, "\n[ER] UEBc_ObteFitxer >>> Desconegut REP.");
+            case -1: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Rebre a interface de sockets."); break;
+            case -2: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Protocol incorrecte o connexio tancada.");break;
+            case -3: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Connexio tancada.");break;
+            default: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Desconegut REP.");
         }
         return resposta;
     }
 
-    printf("[OK] Response received from @%d as: %s%04d", SckCon, tipus, *LongFitx);
+    printf("[OK] Response received from @%d as: %s%04d", data->sck_s, tipus, data->file_size);
     fflush(stdout);
-    write(1, Fitx, *LongFitx);
+    write(1, data->file, data->file_size);
     printf("\n");
 
     if (strcmp(tipus, PUEB_ERR) == 0) {
-        switch ((int)atoi(&Fitx[5])) {
-            case  2: strcpy(MisRes, "[ER] Invalid petition, file name must start with '/'."); break;
-            case  3: strcpy(MisRes, "[ER] Invalid petition, file size is too large to fit in PUEB protocol."); break;
-            case  4: strcpy(MisRes, "[ER] Invalid petition, file is unreachable.");break;
-            default: strcpy(MisRes, "[ER] Invalid petition.");
+        switch ((int)atoi(&data->file[5])) {
+            case  2: strcpy(data->MisRes, "[ER] Invalid petition, file name must start with '/'."); break;
+            case  3: strcpy(data->MisRes, "[ER] Invalid petition, file size is too large to fit in PUEB protocol."); break;
+            case  4: strcpy(data->MisRes, "[ER] Invalid petition, file is unreachable.");break;
+            default: strcpy(data->MisRes, "[ER] Invalid petition.");
         }
         return 1;
     }
 
-    strcpy(MisRes, "[OK] Petition resolved as valid");
+    strcpy(data->MisRes, "[OK] Petition resolved as valid");
     return 0;
 }
 

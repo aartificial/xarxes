@@ -7,10 +7,11 @@
 #define LOG_PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/ser.log"
 #define NOMBRECONNSMAX		4
 
+struct Data *structSetup();
 int AfegeixSck(int Sck, int *LlistaSck, int LongLlistaSck);
 int TreuSck(int Sck, int *LlistaSck, int LongLlistaSck);
 void log_message(char *message);
-void read_config(int* port, char* source);
+void read_config(struct Data *data);
 void close_sck(int SckEsc);
 
 void print_sockets(const int *LlistaSck) {
@@ -19,56 +20,50 @@ void print_sockets(const int *LlistaSck) {
 }
 
 int main() {
-    int SckEsc, SckCon, portTCPser, portTCPcli;
-    char MisRes[200], IPser[16], IPcli[16], source[200];
-
-    int LlistaSck[NOMBRECONNSMAX] = {-1};
-
-    read_config(&portTCPser, source);
+    struct Data *data = structSetup();
     FILE *fitxer = fopen(LOG_PATH, "w");
     fprintf(fitxer, "");
     fclose(fitxer);
 
-    int ini_s = UEBs_IniciaServ(&SckEsc, portTCPser, MisRes, source);
-    printf("%s\n", MisRes);
-    log_message(MisRes);
+    int ini_s = UEBs_IniciaServ(data);
+    printf("%s\n", data->MisRes);
+    log_message(data->MisRes);
     if (ini_s != 0)
         return -1;
 
     int breakpoint = 0;
     while (!breakpoint) {
-        char TipusPeticio[4], NomFitx[9999] = {0};
-
-        SckCon = UEBs_AcceptaConnexio(SckEsc, IPser, &portTCPser, IPcli, &portTCPcli, MisRes);
-        printf("%s\n", MisRes);
-        log_message(MisRes);
-        if (SckCon < 0)
+        memset( data->NomFitx, '\0', sizeof(char)*9999 );
+        data->SckCon = UEBs_AcceptaConnexio(data);
+        printf("%s\n", data->MisRes);
+        log_message(data->MisRes);
+        if (data->SckCon < 0)
             continue;
 
-        printf("[DEBUG] Adding socket %d.\n", SckCon);
-        AfegeixSck(SckCon, LlistaSck, NOMBRECONNSMAX);
-        printf("[DEBUG] Socket %d added.\n", SckCon);
-        print_sockets(LlistaSck);
+        printf("[DEBUG] Adding socket %d.\n", data->SckCon);
+        AfegeixSck(data->SckCon, data->LlistaSck, NOMBRECONNSMAX);
+        printf("[DEBUG] Socket %d added.\n", data->SckCon);
+        print_sockets(data->LlistaSck);
         printf("[DEBUG] Waiting for socket.\n");
-        SckCon = UEBs_HaArribatAlgunaCosa(LlistaSck, NOMBRECONNSMAX, MisRes);
-        printf("[DEBUG] Socket recieved %d.\n", SckCon);
-        printf("[DEBUG] Removing socket %d.\n", SckCon);
-        TreuSck(SckCon, LlistaSck, NOMBRECONNSMAX);
-        printf("[DEBUG] Socket %d removed.\n", SckCon);
-        print_sockets(LlistaSck);
+        data->SckCon = UEBs_HaArribatAlgunaCosa(data);
+        printf("[DEBUG] Socket recieved %d.\n", data->SckCon);
+        printf("[DEBUG] Removing socket %d.\n", data->SckCon);
+        TreuSck(data->SckCon, data->LlistaSck, NOMBRECONNSMAX);
+        printf("[DEBUG] Socket %d removed.\n", data->SckCon);
+        print_sockets(data->LlistaSck);
 
-        int pet_s = UEBs_ServeixPeticio(SckCon, TipusPeticio, NomFitx, MisRes);
-        printf("%s\n", MisRes);
-        log_message(MisRes);
+        int pet_s = UEBs_ServeixPeticio(data);
+        printf("%s\n", data->MisRes);
+        log_message(data->MisRes);
         if (pet_s != 0) {
-            close_sck(SckCon);
+            close_sck(data->SckCon);
             if (pet_s == -3)
                 breakpoint = 1;
             continue;
         }
-        close_sck(SckCon);
+        close_sck(data->SckCon);
     }
-    close_sck(SckEsc);
+    close_sck(data->SckEsc);
 }
 
 void close_sck(int SckEsc) {
@@ -84,21 +79,21 @@ void log_message(char *message) {
     fclose(fitxer);
 }
 
-void read_config(int* port, char* source) {
+void read_config(struct Data *data) {
     FILE* fitxer = fopen(CONFIG_PATH, "r");
-    char data[400];
+    char data_config[400];
     if (fitxer != NULL) {
-        fread(data, 200, 2, fitxer);
+        fread(data_config, 200, 2, fitxer);
         int i = 0;
-        if (data[i] == '#') {
+        if (data_config[i] == '#') {
             i+=9;
-            *port = atoi(&data[9]);
-            while (data[i] != '#')
+            data->portTCPser = atoi(&data_config[9]);
+            while (data_config[i] != '#')
                 i++;
         }
-        if (data[i] == '#') {
+        if (data_config[i] == '#') {
             i+=7;
-            strcpy(source, &data[i]);
+            strcpy(data->source, &data_config[i]);
         }
         fclose(fitxer);
     }
@@ -141,4 +136,15 @@ int TreuSck(int Sck, int *LlistaSck, int LongLlistaSck) {
         }
     }
     return -1;
+}
+
+struct Data *structSetup() {
+    struct Data data;
+    data.LlistaSck = malloc((sizeof *data.LlistaSck) * NOMBRECONNSMAX);
+    data.LongLlistaSck = NOMBRECONNSMAX;
+    for(int i=0; i <data.LongLlistaSck; i++){
+        data.LlistaSck[i] = -1;
+    }
+    read_config(&data);
+    return &data;
 }
