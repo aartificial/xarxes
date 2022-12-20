@@ -20,6 +20,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <errno.h>
+
 
 /* Definició de constants, p.e.,                                          */
 /* #define XYZ       1500                                                 */
@@ -46,7 +49,9 @@ int RepiDesconstMis(int SckCon, char *tipus, char *info1, int *long1);
 
 void construct_msg(char* msg, const char* op, const char* info1, int long1);
 int deconstruct_msg(char* buffer, char* tipus, char* info1, int* long1);
-int read_file(char* NomFitx, char* info1, int* long1, char* MisRes);
+int read_source(char* NomFitx, char* info1, int* long1, char* MisRes);
+int read_file(const char *NomFitx, char *info1, int *long1, char *MisRes);
+int read_directory(const char *NomFitx, char *info1, int *long1, char *MisRes);
 int set_response_type(char *TipusPeticio, int a);
 
 /* Definició de funcions EXTERNES, és a dir, d'aquelles que es cridaran   */
@@ -64,6 +69,7 @@ int set_response_type(char *TipusPeticio, int a);
 /*                                                                        */
 /* Retorna:                                                               */
 /*  0 si tot va bé;                                                       */
+
 /* -1 si hi ha un error en la interfície de sockets.                      */
 int UEBs_IniciaServ(struct Data *data) {
     char buffer[200], IPloc[16];
@@ -143,7 +149,7 @@ int UEBs_ServeixPeticio(struct Data *data) {
     //cannot send all info through MisRes **** stack smashing detected ***
     printf("[OK] Petition %s%04d%s recieved from @%d.\n", data->TipusPeticio,long1,data->NomFitx, data->SckCon);
 
-    int status = read_file(data->NomFitx, info1, &long1, data->MisRes);
+    int status = read_source(data->NomFitx, info1, &long1, data->MisRes);
     error = set_response_type(data->TipusPeticio, status);
 
     if (0 > (ret = ConstiEnvMis(data->SckCon, data->TipusPeticio, info1, long1))) {
@@ -300,16 +306,23 @@ int deconstruct_msg(char* buffer, char* tipus, char* info1, int* long1) {
     return 0;
 }
 
-int read_file(char* NomFitx, char* info1, int* long1, char* MisRes) {
-    char source[200];
-    strcpy(source, PATH);
+int read_source(char* NomFitx, char* info1, int* long1, char* MisRes) {
+
     // Check leading dash
     if (NomFitx[0] != '/') {
         strcpy(MisRes, "[ER] File name invalid format.");
         strcpy(info1, "error2");
-        *long1 = (int)  strlen(info1);
+        *long1 = (int) strlen(info1);
         return -4;
     }
+
+    if(NomFitx[*long1-1] == '/') read_directory(NomFitx, info1, long1, MisRes);
+    else return read_file(NomFitx, info1, long1, MisRes);
+}
+
+int read_file(const char *NomFitx, char *info1, int *long1, char *MisRes) {
+    char source[200];
+    strcpy(source, PATH);
     strcat(source, NomFitx);
     FILE* file = fopen(source, "r");
 
@@ -339,6 +352,47 @@ int read_file(char* NomFitx, char* info1, int* long1, char* MisRes) {
         *long1 = (int) strlen(info1);
         return -4;
     }
+
+    return 0;
+}
+
+int read_directory(const char *NomFitx, char *info1, int *long1, char *MisRes){
+    char path[200];
+    strcpy(path, PATH);
+    strcat(path, NomFitx);
+    DIR* directory = opendir(path);
+    if(directory == NULL) {
+        strcpy(MisRes, "[ER] File does not exist.");
+        strcpy(info1, "error5");
+        *long1 = (int) strlen(info1);
+        return -1;
+    }
+
+    char Nom2[200];
+    strcpy(Nom2, path);
+    strcat(Nom2, "/index.html");
+    int res = read_file( Nom2, info1, long1, MisRes);
+    if (res == 0)
+        return res;
+
+    char aux[9999] = "<!DOCTYPE html>\n"
+                     "<HTML>\n"
+                     "<HEAD>\n"
+                     "<META charset=UTF-8>\n"
+                     "<TITLE>ERROR</TITLE>\n"
+                     "</HEAD>\n"
+                     "<BODY>";
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(NomFitx);
+    if (d) {
+        while ((dir = readdir(d)) != NULL) {
+            strcat(aux, dir->d_name);
+        }
+        closedir(d);
+    }
+    strcat(aux, "</BODY>\n"
+                "</HTML>");
     return 0;
 }
 
