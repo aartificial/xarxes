@@ -6,8 +6,8 @@
 #include <stdlib.h>
 
 #define OBTENIR "obtenir"
-#define PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/recieve"
-
+//#define PATH "/Users/rocarmengoumartra/CLionProjects/xarxes/recieve"
+#define PATH "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/recieve"
 
 
 int read_petition(struct Data *data);
@@ -19,8 +19,8 @@ int main() {
     printf("*  Introduce client ip(default: 0) and port(default: 0):         *\n");
     printf("******************************************************************\n");
 
-    //strcpy(data->IPcli, "10.0.0.23");
-    //data->portTCPcli = 3000;
+    strcpy(data.IPcli, "10.0.0.23");
+    data.portTCPcli = 3000;
 
 
     while (1) {
@@ -43,6 +43,7 @@ int main() {
 
         strcpy(data.target, PATH);
         strcat(data.target, data.file_name);
+        strcat(data.target, "index.html");
         FILE *fitxer_fd = fopen(data.target, "w");
         if (fitxer_fd != NULL) {
             fwrite(data.file, data.file_size, 1, fitxer_fd);
@@ -72,6 +73,9 @@ int read_petition(struct Data *data) {
     }else{
         data->portTCPser = atoi(port_str);
     }
+
+    strcpy(data->file_name, nom_fitx);
+
     if (strcmp(esquema, "pueb") != 0) {
         printf("[ER] Invalid schema.\nExample : pueb://[DNSName]:[#Port]/[FileName]\n");
         return -1;
