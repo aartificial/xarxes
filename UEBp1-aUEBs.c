@@ -15,6 +15,7 @@
 /*   un #include del propi fitxer capçalera)                              */
 
 #include "UEBp1-tTCP.h"
+#include "UEBp1-aUEBs.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -64,17 +65,17 @@ int set_response_type(char *TipusPeticio, int a);
 /* Retorna:                                                               */
 /*  0 si tot va bé;                                                       */
 /* -1 si hi ha un error en la interfície de sockets.                      */
-int UEBs_IniciaServ(int *SckEsc, int portTCPser, char *MisRes, const char* source) {
+int UEBs_IniciaServ(struct Data *data) {
     char buffer[200], IPloc[16];
-    sprintf(buffer, "[OK] Source set @%s\n", source);
+    sprintf(buffer, "[OK] Source set @%s\n", data->source);
 
     strcpy(IPloc,"0.0.0.0");
-    if(-1 == (*SckEsc=TCP_CreaSockServidor(IPloc, portTCPser))) {
-        sprintf(buffer + 21, MisRes, "[ER] Unable to create socket server.");
+    if(-1 == (data->SckEsc=TCP_CreaSockServidor(IPloc, data->portTCPser))) {
+        sprintf(buffer + 21, data->MisRes, "[ER] Unable to create socket server.");
         return -1;
     }
-    sprintf(buffer + strlen(buffer), "[OK] Server running at @%d(@%s:#%d).", *SckEsc, IPloc, portTCPser);
-    strcpy(MisRes, buffer);
+    sprintf(buffer + strlen(buffer), "[OK] Server running at @%d(@%s:#%d).", data->SckEsc, IPloc, data->portTCPser);
+    strcpy(data->MisRes, buffer);
     return 0;
 }
 
@@ -93,15 +94,15 @@ int UEBs_IniciaServ(int *SckEsc, int portTCPser, char *MisRes, const char* sourc
 /* Retorna:                                                               */
 /*  l'identificador del socket TCP connectat si tot va bé;                */
 /* -1 si hi ha un error a la interfície de sockets.                       */
-int UEBs_AcceptaConnexio(int SckEsc, char *IPser, int *portTCPser, char *IPcli, int *portTCPcli, char *MisRes) {
+int UEBs_AcceptaConnexio(struct Data *data) {
     int socket_fd;
-    if(-1 == (socket_fd = TCP_AcceptaConnexio(SckEsc, IPcli, portTCPcli))) {
-        sprintf(MisRes, "[ER] Connection rejected from @%s:#%d.", IPcli, *portTCPcli);
+    if(-1 == (socket_fd = TCP_AcceptaConnexio(data->SckEsc, data->IPcli, &data->portTCPcli))) {
+        sprintf(data->MisRes, "[ER] Connection rejected from @%s:#%d.", data->IPcli, data->portTCPcli);
         return -1;
     }
-    TCP_TrobaAdrSockLoc(socket_fd, IPser, portTCPser);
-    TCP_TrobaAdrSockRem(socket_fd, IPcli, portTCPcli);
-    sprintf(MisRes, "[OK] Connection accepted at @%d from @%s:#%d.", socket_fd, IPcli, *portTCPcli);
+    TCP_TrobaAdrSockLoc(socket_fd, data->IPser, &data->portTCPser);
+    TCP_TrobaAdrSockRem(socket_fd, data->IPcli, &data->portTCPcli);
+    sprintf(data->MisRes, "[OK] Connection accepted at @%d from @%s:#%d.", socket_fd, data->IPcli, data->portTCPcli);
     return socket_fd;
 }
 
@@ -125,30 +126,30 @@ int UEBs_AcceptaConnexio(int SckEsc, char *IPser, int *portTCPser, char *IPcli, 
 /* -3 si l'altra part tanca la connexió;                                  */
 /* -4 si hi ha problemes amb el fitxer de la petició (p.e., nomfitxer no  */
 /*  comença per /, fitxer no es pot llegir, fitxer massa gran, etc.).     */
-int UEBs_ServeixPeticio(int SckCon, char *TipusPeticio, char *NomFitx, char *MisRes) {
+int UEBs_ServeixPeticio(struct Data *data) {
     int long1, error, ret;
     char info1[PUEB_MAXINFO1SIZE];
 
-    if (0 > (ret = RepiDesconstMis(SckCon, TipusPeticio, NomFitx, &long1))) {
+    if (0 > (ret = RepiDesconstMis(data->SckCon, data->TipusPeticio, data->NomFitx, &long1))) {
         switch (ret) {
-            case -1: strcpy(MisRes, "[ER] UEBs_ServeixPetició >>> Hi ha un error status l'interfície de sockets.");break;
-            case -2: strcpy(MisRes, "[ER] UEBs_ServeixPetició >>> Protocol incorrecte o connexio tancada.");break;
-            case -3: strcpy(MisRes, "[ER] UEBs_ServeixPetició >>> Connexio tancada.");break;
+            case -1: strcpy(data->MisRes, "[ER] UEBs_ServeixPetició >>> Hi ha un error status l'interfície de sockets.");break;
+            case -2: strcpy(data->MisRes, "[ER] UEBs_ServeixPetició >>> Protocol incorrecte o connexio tancada.");break;
+            case -3: strcpy(data->MisRes, "[ER] UEBs_ServeixPetició >>> Connexio tancada.");break;
             default: ;break;
         }
         return ret;
     }
 
     //cannot send all info through MisRes **** stack smashing detected ***
-    printf("[OK] Petition %s%04d%s recieved from @%d.\n", TipusPeticio,long1,NomFitx, SckCon);
+    printf("[OK] Petition %s%04d%s recieved from @%d.\n", data->TipusPeticio,long1,data->NomFitx, data->SckCon);
 
-    int status = read_file(NomFitx, info1, &long1, MisRes);
-    error = set_response_type(TipusPeticio, status);
+    int status = read_file(data->NomFitx, info1, &long1, data->MisRes);
+    error = set_response_type(data->TipusPeticio, status);
 
-    if (0 > (ret = ConstiEnvMis(SckCon, TipusPeticio, info1, long1))) {
+    if (0 > (ret = ConstiEnvMis(data->SckCon, data->TipusPeticio, info1, long1))) {
         switch (ret) {
-            case -1:strcpy(MisRes, "[ER] Cannot send to socket interface.");break;
-            case -2:strcpy(MisRes, "[ER] Invalid protocol.");break;
+            case -1:strcpy(data->MisRes, "[ER] Cannot send to socket interface.");break;
+            case -2:strcpy(data->MisRes, "[ER] Invalid protocol.");break;
             default: ;break;
         }
         return ret;
@@ -156,9 +157,9 @@ int UEBs_ServeixPeticio(int SckCon, char *TipusPeticio, char *NomFitx, char *Mis
 
     //cannot send all info through MisRes **** stack smashing detected ***
     if (long1 < 100)
-        printf("[OK] Petition %s%04d%s served at @%d.\n", TipusPeticio, long1, info1, SckCon);
+        printf("[OK] Petition %s%04d%s served at @%d.\n", data->TipusPeticio, long1, info1, data->SckCon);
     else {
-        printf("[OK] Petition %s%04d served at @%d.\n", TipusPeticio, long1, SckCon);
+        printf("[OK] Petition %s%04d served at @%d.\n", data->TipusPeticio, long1, data->SckCon);
         printf("[DATA]\n");
         write(1, info1, long1);
         printf("\n");
@@ -166,7 +167,7 @@ int UEBs_ServeixPeticio(int SckCon, char *TipusPeticio, char *NomFitx, char *Mis
 
     if (error != 0)
         return -4;
-    strcpy(MisRes, "[OK] Petition served successfully.");
+    strcpy(data->MisRes, "[OK] Petition served successfully.");
     return 0;
 }
 
@@ -268,15 +269,15 @@ int RepiDesconstMis(int SckCon, char *tipus, char *info1, int *long1) {
 /* Retorna:                                                               */
 /*  l'identificador del socket a través del qual ha arribat alguna cosa;  */
 /*  -1 si hi ha error.                                                    */
-int UEBs_HaArribatAlgunaCosa(const int *LlistaSck, int LongLlistaSck, char *TextRes) {
+int UEBs_HaArribatAlgunaCosa(struct Data *data) {
 
-    int Sck = TCP_HaArribatAlgunaCosaEnTemps(LlistaSck, LongLlistaSck, 0);
+    int Sck = TCP_HaArribatAlgunaCosaEnTemps(data->LlistaSck, data->LongLlistaSck, 0);
     printf("[DEBUG] UEBs Socket returned %d\n", Sck);
     if (Sck == -1) {
-        strcpy(TextRes, "[ERROR] Unable to select socket.");
+        strcpy(data->MisRes, "[ERROR] Unable to select socket.");
         return -1;
     }
-    strcpy(TextRes, "[OK] Socket selected.");
+    strcpy(data->MisRes, "[OK] Socket selected.");
     return Sck;
 }
 

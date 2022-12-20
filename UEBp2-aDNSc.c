@@ -23,6 +23,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "UEBp2-aDNSc.h"
+#include "UEBp1-aUEBc.h"
 
 //* Definició de constants, p.e.,                                         */
 
@@ -66,7 +67,7 @@ int DNSc_ResolDNSaIP(const char *NomDNS, char *IP, char *TextRes)
  adrHOST.s_addr = *((unsigned long *)dadesHOST->h_addr_list[0]);
  strcpy(IP,(char*)inet_ntoa(adrHOST));
  
- sprintf(TextRes,"Tot bé"); 
+ sprintf(TextRes,"Tot bé");
  return 0;
 }
 
