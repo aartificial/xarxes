@@ -19,9 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <dirent.h>
-#include <errno.h>
 
 
 /* Definició de constants, p.e.,                                          */
@@ -36,22 +34,20 @@
 #define PUEB_ERR "ERR\0"
 #define PUEB_COR "COR\0"
 
-#define PATH "/mnt/c/Users/jiesa/CLionProjects/xarxes/p2/server/llocUEB"
-
 /* Declaració de funcions INTERNES que es fan servir en aquest fitxer     */
 /* (les  definicions d'aquestes funcions es troben més avall) per així    */
 /* fer-les conegudes des d'aquí fins al final d'aquest fitxer, p.e.,      */
 
 /* int FuncioInterna(arg1, arg2...);                                      */
 
-int ConstiEnvMis(int SckCon, const char *tipus, const char *info1, int long1);
-int RepiDesconstMis(int SckCon, char *tipus, char *info1, int *long1);
+int ConstiEnvMis(struct UEB_DataTO *dto);
+int RepiDesconstMis(struct UEB_DataTO *dto);
 
-void construct_msg(char* msg, const char* op, const char* info1, int long1);
-int deconstruct_msg(char* buffer, char* tipus, char* info1, int* long1);
-int read_source(char* NomFitx, char* info1, int* long1, char* MisRes);
-int read_file(const char *NomFitx, char *info1, int *long1, char *MisRes, int log);
-int read_directory(const char *NomFitx, char *info1, int *long1, char *MisRes);
+void construct_msg(char* msg, struct UEB_DataTO *dto);
+int deconstruct_msg(char* buffer, struct UEB_DataTO *dto);
+int read_source(struct UEB_DataTO *dto);
+int read_file(struct UEB_DataTO *dto, int log);
+int read_directory(struct UEB_DataTO *dto);
 int set_response_type(char *TipusPeticio, int a);
 
 /* Definició de funcions EXTERNES, és a dir, d'aquelles que es cridaran   */
@@ -71,17 +67,16 @@ int set_response_type(char *TipusPeticio, int a);
 /*  0 si tot va bé;                                                       */
 
 /* -1 si hi ha un error en la interfície de sockets.                      */
-int UEBs_IniciaServ(struct Data *data) {
-    char buffer[200], IPloc[16];
-    sprintf(buffer, "[OK] Source set @%s\n", data->source);
+int UEBs_IniciaServ(struct UEB_DataTO *dto) {
+    //printf("[UEB][OK] Source set @%s\n", dto->path);
+    printf("Source set @/xarxes/llocUEB\n");
 
-    strcpy(IPloc,"0.0.0.0");
-    if(-1 == (data->SckEsc=TCP_CreaSockServidor(IPloc, data->portTCPser))) {
-        sprintf(buffer + 21, data->MisRes, "[ER] Unable to create socket server.");
+    if (-1 == (dto->ser.socket = TCP_CreaSockServidor(dto->ser.ip, dto->ser.port))) {
+        strcat(dto->response, "[ER] Unable to create socket server.");
         return -1;
     }
-    sprintf(buffer + strlen(buffer), "[OK] Server running at @%d(@%s:#%d).", data->SckEsc, IPloc, data->portTCPser);
-    strcpy(data->MisRes, buffer);
+
+    strcpy(dto->response, "Server is running ");
     return 0;
 }
 
@@ -100,16 +95,19 @@ int UEBs_IniciaServ(struct Data *data) {
 /* Retorna:                                                               */
 /*  l'identificador del socket TCP connectat si tot va bé;                */
 /* -1 si hi ha un error a la interfície de sockets.                       */
-int UEBs_AcceptaConnexio(struct Data *data) {
-    int socket_fd;
-    if(-1 == (socket_fd = TCP_AcceptaConnexio(data->SckEsc, data->IPcli, &data->portTCPcli))) {
-        sprintf(data->MisRes, "[ER] Connection rejected from @%s:#%d.", data->IPcli, data->portTCPcli);
+int UEBs_AcceptaConnexio(struct UEB_DataTO *dto) {
+    int socket;
+    char buffer[200];
+    if (-1 == (socket = TCP_AcceptaConnexio(dto->ser.socket, dto->cli.ip, &dto->cli.port))) {
+        strcpy(dto->response, "\nConnection rejected");
         return -1;
     }
-    TCP_TrobaAdrSockLoc(socket_fd, data->IPser, &data->portTCPser);
-    TCP_TrobaAdrSockRem(socket_fd, data->IPcli, &data->portTCPcli);
-    sprintf(data->MisRes, "[OK] Connection accepted at @%d from @%s:#%d.", socket_fd, data->IPcli, data->portTCPcli);
-    return socket_fd;
+    TCP_TrobaAdrSockLoc(socket, dto->ser.ip, &dto->ser.port);
+    TCP_TrobaAdrSockRem(socket, dto->cli.ip, &dto->cli.port);
+
+    sprintf(buffer, "\nConnection accepted as @%d(%s:#%d)", socket, dto->cli.ip, dto->cli.port);
+    strcpy(dto->response,  buffer);
+    return socket;
 }
 
 /* Serveix una petició UEB d'un C a través de la connexió TCP             */
@@ -132,48 +130,42 @@ int UEBs_AcceptaConnexio(struct Data *data) {
 /* -3 si l'altra part tanca la connexió;                                  */
 /* -4 si hi ha problemes amb el fitxer de la petició (p.e., nomfitxer no  */
 /*  comença per /, fitxer no es pot llegir, fitxer massa gran, etc.).     */
-int UEBs_ServeixPeticio(struct Data *data) {
-    int long1, error, ret;
-    char info1[PUEB_MAXINFO1SIZE];
+int UEBs_ServeixPeticio(struct UEB_DataTO *dto) {
+    int error, ret;
+    char buffer[1006];
 
-    if (0 > (ret = RepiDesconstMis(data->SckCon, data->TipusPeticio, data->NomFitx, &long1))) {
+    if (0 > (ret = RepiDesconstMis(dto))) {
         switch (ret) {
-            case -1: strcpy(data->MisRes, "[ER] UEBs_ServeixPetició >>> Hi ha un error status l'interfície de sockets.");break;
-            case -2: strcpy(data->MisRes, "[ER] UEBs_ServeixPetició >>> Protocol incorrecte o connexio tancada.");break;
-            case -3: strcpy(data->MisRes, "[ER] UEBs_ServeixPetició >>> Connexio tancada.");break;
+            case -1: strcpy(dto->response, "\nError in socket interface >>> ");break;
+            case -2: strcpy(dto->response, "\nInvalid protocol >>> ");break;
+            case -3: strcpy(dto->response, "\nClient connection is closed >>> ");break;
             default: ;break;
         }
+        strcat(dto->response, TCP_ObteMissError());
         return ret;
     }
 
-    //cannot send all info through MisRes **** stack smashing detected ***
-    printf("[OK] Petition %s%04d%s recieved from @%d.\n", data->TipusPeticio,long1,data->NomFitx, data->SckCon);
+    sprintf(buffer,"\nPetition %s%04d%s recieved from @%d.", dto->pet.type, dto->pet.size, dto->pet.data, dto->cli.socket);
+    strcpy(dto->response, buffer);
 
-    int status = read_source(data->NomFitx, info1, &long1, data->MisRes);
-    error = set_response_type(data->TipusPeticio, status);
+    int status = read_source(dto);
+    error = set_response_type(dto->pet.type, status);
 
-    if (0 > (ret = ConstiEnvMis(data->SckCon, data->TipusPeticio, info1, long1))) {
+    if (0 > (ret = ConstiEnvMis(dto))) {
         switch (ret) {
-            case -1:strcpy(data->MisRes, "[ER] Cannot send to socket interface.");break;
-            case -2:strcpy(data->MisRes, "[ER] Invalid protocol.");break;
+            case -1:strcat(dto->response, "Cannot send to socket interface >>> ");break;
+            case -2:strcat(dto->response, "Invalid protocol >>> ");break;
             default: ;break;
         }
+        strcat(dto->response, TCP_ObteMissError());
         return ret;
     }
 
-    //cannot send all info through MisRes **** stack smashing detected ***
-    if (long1 < 100)
-        printf("[OK] Petition %s%04d%s served at @%d.\n", data->TipusPeticio, long1, info1, data->SckCon);
-    else {
-        printf("[OK] Petition %s%04d served at @%d.\n", data->TipusPeticio, long1, data->SckCon);
-        printf("[DATA]\n");
-        write(1, info1, long1);
-        printf("\n");
-    }
+    sprintf(buffer,"\nPetition served at @%d as %s%04d%s",  dto->cli.socket, dto->pet.type, dto->pet.size, dto->pet.data);
+    strcat(dto->response, buffer);
 
     if (error != 0)
         return -4;
-    strcpy(data->MisRes, "[OK] Petition served successfully.");
     return 0;
 }
 
@@ -186,12 +178,13 @@ int UEBs_ServeixPeticio(struct Data *data) {
 /* Retorna:                                                               */
 /*   0 si tot va bé;                                                      */
 /*  -1 si hi ha un error a la interfície de sockets.                      */
-int UEBs_TancaConnexio(int SckCon, char *MisRes) {
-    if (-1 == (TCP_TancaSock(SckCon))) {
-        strcpy(MisRes, "[ER] Unable to close socket.");
+int UEBs_TancaConnexio(struct UEB_DataTO *dto) {
+    if (-1 == (TCP_TancaSock(dto->cli.socket))) {
+        strcpy(dto->response, "\nUnable to close socket >>> ");
+        strcat(dto->response, TCP_ObteMissError());
         return -1;
     }
-    strcpy(MisRes, "[OK] Socket successfully closed.");
+    strcpy(dto->response, "\nSocket successfully closed.");
     return 0;
 }
 
@@ -227,12 +220,12 @@ int UEBs_TancaConnexio(int SckCon, char *MisRes) {
 /*  0 si tot va bé;                                                       */
 /* -1 si hi ha un error a la interfície de sockets;                       */
 /* -2 si protocol és incorrecte (longitud camps, tipus de peticio).       */
-int ConstiEnvMis(int SckCon, const char *tipus, const char *info1, int long1) {
-    if (long1 < PUEB_MINDATASIZE || long1 > PUEB_MAXINFO1SIZE)
+int ConstiEnvMis(struct UEB_DataTO *dto) {
+    if (dto->pet.size < PUEB_MINDATASIZE || dto->pet.size > PUEB_MAXINFO1SIZE)
         return -2;
-    char msg[long1];
-    construct_msg(msg, tipus, info1, long1);
-    return TCP_Envia(SckCon, msg, long1 + PUEB_TYPESIZE + PUEB_INFO1SIZE);
+    char msg[dto->pet.size];
+    construct_msg(msg, dto);
+    return TCP_Envia(dto->cli.socket, msg, dto->pet.size + PUEB_TYPESIZE + PUEB_INFO1SIZE);
 }
 
 /* Rep a través del socket TCP “connectat” d’identificador “SckCon” un    */
@@ -250,15 +243,15 @@ int ConstiEnvMis(int SckCon, const char *tipus, const char *info1, int long1) {
 /* -1 si hi ha un error a la interfície de sockets;                       */
 /* -2 si protocol és incorrecte (longitud camps, tipus de peticio);       */
 /* -3 si l'altra part tanca la connexió.	                              */
-int RepiDesconstMis(int SckCon, char *tipus, char *info1, int *long1) {
-    char buffer[PUEB_MAXBUFFERSIZE]= {0};
-    int bytes = TCP_Rep(SckCon, buffer, sizeof(buffer));
+int RepiDesconstMis(struct UEB_DataTO *dto) {
+    char buffer[PUEB_MAXBUFFERSIZE];
+    int bytes = TCP_Rep(dto->cli.socket, buffer, sizeof(buffer));
     switch (bytes) {
         case -1: return -1;
         case  0: return -3;
         default: if (bytes < PUEB_TYPESIZE + PUEB_INFO1SIZE) return -2;
     }
-    return deconstruct_msg(buffer, tipus, info1, long1);
+    return deconstruct_msg(buffer, dto);
 }
 
 /* Examina simultàniament i sense límit de temps (una espera indefinida)  */
@@ -275,134 +268,128 @@ int RepiDesconstMis(int SckCon, char *tipus, char *info1, int *long1) {
 /* Retorna:                                                               */
 /*  l'identificador del socket a través del qual ha arribat alguna cosa;  */
 /*  -1 si hi ha error.                                                    */
-int UEBs_HaArribatAlgunaCosa(struct Data *data) {
-
-    int Sck = TCP_HaArribatAlgunaCosaEnTemps(data->LlistaSck, data->LongLlistaSck, 0);
-    printf("[DEBUG] UEBs Socket returned %d\n", Sck);
-    if (Sck == -1) {
-        strcpy(data->MisRes, "[ERROR] Unable to select socket.");
+int UEBs_HaArribatAlgunaCosa(struct UEB_DataTO *dto) {
+    int socket = TCP_HaArribatAlgunaCosaEnTemps(dto->scon_i, dto->scon_n, 0);
+    if (socket == -1) {
+        strcpy(dto->response, "\nUnable to select socket >>> ");
+        strcat(dto->response, TCP_ObteMissError());
         return -1;
     }
-    strcpy(data->MisRes, "[OK] Socket selected.");
-    return Sck;
+    char buffer[200];
+    sprintf(buffer, "\nSocket @%d selected", socket);
+    strcpy(dto->response, buffer);
+    return socket;
 }
 
-void construct_msg(char* msg, const char* op, const char* info1, int long1) {
+void construct_msg(char* msg, struct UEB_DataTO *dto) {
     char tmp[PUEB_INFO1SIZE]={0};
-    sprintf(tmp, "%04d", long1);
-    memcpy(msg, op, PUEB_TYPESIZE);
+    sprintf(tmp, "%04d", dto->pet.size);
+    memcpy(msg, dto->pet.type, PUEB_TYPESIZE);
     memcpy(msg + PUEB_TYPESIZE, tmp, PUEB_INFO1SIZE);
-    memcpy(msg + PUEB_TYPESIZE + PUEB_INFO1SIZE, info1, long1);
+    memcpy(msg + PUEB_TYPESIZE + PUEB_INFO1SIZE, dto->pet.data, dto->pet.size);
 }
 
-int deconstruct_msg(char* buffer, char* tipus, char* info1, int* long1) {
-    char tmp[PUEB_INFO1SIZE]; tmp[PUEB_TYPESIZE] = '\0';
-    memcpy(tipus, buffer, PUEB_TYPESIZE);
+int deconstruct_msg(char* buffer, struct UEB_DataTO *dto) {
+    char tmp[PUEB_INFO1SIZE];
+    tmp[PUEB_TYPESIZE] = '\0';
+    memset(dto->pet.type, '\0', 4);
+    memcpy(dto->pet.type, buffer, PUEB_TYPESIZE);
     memcpy(tmp, buffer + PUEB_TYPESIZE, PUEB_INFO1SIZE);
-    *long1 = atoi(tmp);
-    if (*long1 <= 0 || *long1 > PUEB_MAXINFO1SIZE)
+    dto->pet.size = atoi(tmp);
+    if (dto->pet.size <= 0 || dto->pet.size > PUEB_MAXINFO1SIZE)
         return -2;
-    memcpy(info1, buffer + PUEB_TYPESIZE + PUEB_INFO1SIZE, *long1);
+    memset(dto->pet.data, '\0', 9999);
+    memcpy(dto->pet.data, buffer + PUEB_TYPESIZE + PUEB_INFO1SIZE, dto->pet.size);
     return 0;
 }
 
-int read_source(char* NomFitx, char* info1, int* long1, char* MisRes) {
-
+int read_source(struct UEB_DataTO *dto) {
     // Check leading dash
-    if (NomFitx[0] != '/') {
-        strcpy(MisRes, "[ER] File name invalid format.");
-        strcpy(info1, "error2");
-        *long1 = (int) strlen(info1);
+    if (dto->pet.data[0] != '/') {
+        strcat(dto->response, "\nFile name invalid format.");
+        strcpy(dto->pet.data, "error2");
+        dto->pet.size = (int) strlen(dto->pet.data);
         return -4;
     }
 
-    if(NomFitx[*long1-1] == '/') read_directory(NomFitx, info1, long1, MisRes);
-    else return read_file(NomFitx, info1, long1, MisRes, 1);
+    if(dto->pet.data[dto->pet.size - 1] == '/')
+        return read_directory(dto);
+    else
+        return read_file(dto, 1);
 }
 
-int read_file(const char *NomFitx, char *info1, int *long1, char *MisRes, int log) {
+int read_file(struct UEB_DataTO *dto, int log) {
     char source[200];
-    strcpy(source, PATH);
-    strcat(source, NomFitx);
+    strcpy(source, dto->path);
+    strcat(source, dto->pet.data);
     FILE* file = fopen(source, "r");
-
-    printf("%s\n%s\n%d\n", NomFitx, info1, *long1);
 
     // Check file can be opened
     if (file == NULL) {
         if (log) {
-            strcpy(MisRes, "[ER] Unable to open file.");
-            strcpy(info1, "error4");
-            *long1 = (int) strlen(info1);
+            printf("PATH: %s\n", source);
+            strcat(dto->response, "\nUnable to open file.");
+            strcpy(dto->pet.data, "error4");
+            dto->pet.size = (int) strlen(dto->pet.data);
         }
         return -2;
     }
 
-    *long1 = (int) fread(info1, 1, PUEB_MAXINFO1SIZE, file);
+    dto->pet.size = (int) fread(dto->pet.data, 1, PUEB_MAXINFO1SIZE, file);
     fclose(file);
 
     // Check file is empty
-    if (*long1 == 0) {
-        strcpy(MisRes, "[ER] Unable to read file..");
-        strcpy(info1, "error1");
-        *long1 = (int) strlen(info1);
+    if (dto->pet.size == 0) {
+        strcat(dto->response, "\nUnable to read file..");
+        strcpy(dto->pet.data, "error1");
+        dto->pet.size = (int) strlen(dto->pet.data);
         return -3;
     }
 
     // Check file size too big
-    if (*long1 > PUEB_MAXINFO1SIZE) {
-        strcpy(MisRes, "[ER] File size is too big.");
-        strcpy(info1, "error3");
-        *long1 = (int) strlen(info1);
+    if (dto->pet.size > PUEB_MAXINFO1SIZE) {
+        strcat(dto->response, "\nFile size is too big.");
+        strcpy(dto->pet.data, "error3");
+        dto->pet.size = (int) strlen(dto->pet.data);
         return -4;
     }
 
     return 0;
 }
 
-int read_directory(const char *NomFitx, char *info1, int *long1, char *MisRes){
+int read_directory(struct UEB_DataTO *dto){
     char path[200];
-    strcpy(path, PATH);
-    strcat(path, NomFitx);
+    strcpy(path, dto->path);
+    strcat(path, dto->pet.data);
     DIR* directory = opendir(path);
     if(directory == NULL) {
-        strcpy(MisRes, "[ER] File does not exist.");
-        strcpy(info1, "error5");
-        *long1 = (int) strlen(info1);
+        strcat(dto->response, "\nFile does not exist.");
+        strcpy(dto->pet.data, "error5");
+        dto->pet.size = (int) strlen(dto->pet.data);
         return -1;
     }
 
     char Nom2[200];
     strcpy(Nom2, path);
     strcat(Nom2, "index.html");
-    printf(":AGLSFKJALSKFJ:LAKSFHJ:LAKSJF:LK\n");
-    int res = read_file( Nom2, info1, long1, MisRes, 0);
+    int res = read_file( dto, 0);
     if (res == 0)
         return res;
 
-    char aux[9999] = "<!DOCTYPE html>\n"
-                     "<HTML>\n"
-                     "<HEAD>\n"
-                     "<META charset=UTF-8>\n"
-                     "<TITLE>ERROR</TITLE>\n"
-                     "</HEAD>\n"
-                     "<BODY>";
-
-    FILE *ls_cmd = popen("ls -l", "r");
-
+    char aux[9999] = "<!DOCTYPE html>\n<HTML>\n<HEAD>\n<META charset=UTF-8>\n<TITLE>ERROR</TITLE>\n</HEAD>\n<BODY>";
+    char command[200] = "ls -l ";
+    strcat(command, path);
+    FILE *ls_cmd = popen(command, "r");
     static char buff[9999];
-
-    while ((fread(buff, 1, sizeof(buff)-1, ls_cmd)) > 0) {
-        strcpy(aux, buff);
-    }
-
+    while ((fread(buff, 1, sizeof(buff)-1, ls_cmd)) > 0)
+        strcat(aux, buff);
     pclose(ls_cmd);
+    strcat(aux, "</BODY>\n</HTML>");
 
-    strcat(aux, "</BODY>\n"
-                "</HTML>");
 
-    strcpy(info1, aux);
-    *long1 = strlen(aux);
+
+    strcpy(dto->pet.data, aux);
+    dto->pet.size = strlen(aux);
 
     return 0;
 }

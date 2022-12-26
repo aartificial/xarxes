@@ -67,22 +67,21 @@ int UEBc_DemanaConnexio(struct Data *data) {
     int socket_fd;
     char aux[200];
     if(-1 == (socket_fd = TCP_CreaSockClient(data->IPcli, data->portTCPcli))) {
-        strcpy(data->MisRes, "[ER] Unable to create socket.");
+        strcpy(data->MisRes, "\n[ER] Unable to create socket.");
         return -1;
     }
-    printf("[DEBUG] socket=%d IPser=%s portTCPser=%d\n", socket_fd, data->IPser, data->portTCPser);
     if (-1 == (TCP_DemanaConnexio(socket_fd, data->IPser, data->portTCPser))) {
         printf("%s:%d\n", data->IPser, data->portTCPser);
-        strcpy(data->MisRes, "[ER] Connection refused.");
+        strcpy(data->MisRes, "\n[ER] Connection refused.");
         return -1;
     }
     int transfer = 0;
     if (-1 == TCP_TrobaAdrSockLoc(socket_fd, data->IPcli, &transfer)) {
-        strcpy(data->MisRes, "[ER] Cannot find local address.");
+        strcpy(data->MisRes, "\n[ER] Cannot find local address.");
         return -1;
     }
     data->portTCPcli = transfer;
-    sprintf(aux, "[OK] Connection established with @%d(@%s:#%d) as (@%s:#%d).", socket_fd, data->IPcli, data->portTCPcli, data->IPser, data->portTCPser);
+    sprintf(aux, "\n[OK] Connection established with @%d(@%s:#%d) as (@%s:#%d).", socket_fd, data->IPser, data->portTCPser, data->IPcli, data->portTCPcli);
     strcpy(data->MisRes, aux);
     return socket_fd;
 }
@@ -107,17 +106,17 @@ int UEBc_DemanaConnexio(struct Data *data) {
 /* -3 si l'altra part tanca la connexió.                                  */
 int UEBc_ObteFitxer(struct Data *data) {
     int resposta;
-    char tipus[PUEB_TYPESIZE];
+    char tipus[4];
     if ( 0 > (resposta = ConstiEnvMis(data->sck_s, PUEB_OBT, data->file_name, (int)strlen(data->file_name)))) {
         switch (resposta) {
-            case -1: strcpy(data->MisRes, "[ER] UEBc_ObteFitxer >>> Enviar a interface de sockets."); break;
-            case -2: strcpy(data->MisRes, "[ER] UEBc_ObteFitxer >>> Protocol incorrecte.");break;
-            default: strcpy(data->MisRes, "[ER] UEBc_ObteFitxer >>> Desconegut ENV.");
+            case -1: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Enviar a interface de sockets."); break;
+            case -2: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Protocol incorrecte.");break;
+            default: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Desconegut ENV.");
         }
         return resposta;
     }
 
-    printf("[OK] Petition sent at @%d as OBT%04d%s\n", data->sck_s, (int) strlen(data->file_name), data->file_name);
+    printf("\n[OK] Petition sent at @%d as OBT%04d%s", data->sck_s, (int) strlen(data->file_name), data->file_name);
 
     int transfer = 0;
     if (0 > (resposta = RepiDesconstMis(data->sck_s, tipus, data->file, &transfer))) {
@@ -127,26 +126,27 @@ int UEBc_ObteFitxer(struct Data *data) {
             case -3: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Connexio tancada.");break;
             default: strcpy(data->MisRes, "\n[ER] UEBc_ObteFitxer >>> Desconegut REP.");
         }
+        strcat(data->MisRes, TCP_ObteMissError());
         return resposta;
     }
     data->file_size = transfer;
 
-    printf("[OK] Response received from @%d as: %s%04d", data->sck_s, tipus, data->file_size);
+    printf("\n[OK] Response received from @%d as: %s%04d", data->sck_s, tipus, data->file_size);
     fflush(stdout);
     write(1, data->file, data->file_size);
     printf("\n");
 
     if (strcmp(tipus, PUEB_ERR) == 0) {
         switch ((int)atoi((const char *) data->file[5])) {
-            case  2: strcpy(data->MisRes, "[ER] Invalid petition, file name must start with '/'."); break;
-            case  3: strcpy(data->MisRes, "[ER] Invalid petition, file size is too large to fit in PUEB protocol."); break;
-            case  4: strcpy(data->MisRes, "[ER] Invalid petition, file is unreachable.");break;
-            default: strcpy(data->MisRes, "[ER] Invalid petition.");
+            case  2: strcpy(data->MisRes, "\n[ER] Invalid petition, file name must start with '/'."); break;
+            case  3: strcpy(data->MisRes, "\n[ER] Invalid petition, file size is too large to fit in PUEB protocol."); break;
+            case  4: strcpy(data->MisRes, "\n[ER] Invalid petition, file is unreachable.");break;
+            default: strcpy(data->MisRes, "\n[ER] Invalid petition.");
         }
         return 1;
     }
 
-    strcpy(data->MisRes, "[OK] Petition resolved as valid");
+    strcpy(data->MisRes, "\n[OK] Petition resolved as valid");
     return 0;
 }
 
@@ -161,10 +161,10 @@ int UEBc_ObteFitxer(struct Data *data) {
 /*  -1 si hi ha un error a la interfície de sockets.                      */
 int UEBc_TancaConnexio(int SckCon, char *MisRes) {
     if ((TCP_TancaSock(SckCon)) == -1) {
-        strcpy(MisRes, "[ER] Unable to close connection.");
+        strcpy(MisRes, "\n[ER] Unable to close connection.");
         return -1;
     }
-    strcpy(MisRes, "[OK] Connection closed successfully.");
+    strcpy(MisRes, "\n[OK] Connection closed successfully.");
     return 0;
 }
 
@@ -238,7 +238,7 @@ int RepiDesconstMis(int SckCon, char *tipus, char *info1, int *long1) {
 }
 
 void construct_msg(char* msg, const char* op, const char* info1, int long1) {
-    char tmp[PUEB_INFO1SIZE];
+    char tmp[4];
     sprintf(tmp, "%04d", long1);
     memcpy(msg, op, PUEB_TYPESIZE);
     memcpy(msg + PUEB_TYPESIZE, tmp, PUEB_INFO1SIZE);
@@ -246,8 +246,9 @@ void construct_msg(char* msg, const char* op, const char* info1, int long1) {
 }
 
 int deconstruct_msg(char* buffer, char* tipus, char* info1, int* long1) {
-    char tmp[4]; tmp[3] = '\0';
-    memcpy(tipus, buffer, PUEB_TYPESIZE);
+    char tmp[4];
+    memcpy(tipus, buffer, 3);
+    tipus[3] = '\0';
     memcpy(tmp, buffer + 3, 4);
     *long1 = atoi(tmp);
     if (*long1 <= 0 || *long1 > PUEB_MAXINFO1SIZE)

@@ -16,19 +16,31 @@
 /* En termes de capes de l'aplicació, aquest conjunt de funcions          */
 /* EXTERNES formen la interfície de la capa UEB, en la part servidora.    */
 
-
-
-struct Data{
-    int SckEsc, SckCon, portTCPser, portTCPcli;
-    char MisRes[200], IPser[16], IPcli[16], source[200];
-    int* LlistaSck;
-    char TipusPeticio[4], NomFitx[9999];
-    int LongLlistaSck;
+struct connection {
+    int socket;
+    char ip[16];
+    int port;
 };
 
-int UEBs_IniciaServ(struct Data *data);
-int UEBs_AcceptaConnexio(struct Data *data);
-int UEBs_ServeixPeticio(struct Data *data);
-int UEBs_TancaConnexio(int SckCon, char *MisRes);
-int UEBs_HaArribatAlgunaCosa(struct Data *data);
+struct petition {
+    char type[4];
+    char data[9999];
+    int size;
+};
+
+struct UEB_DataTO {
+    struct connection cli;
+    struct connection ser;
+    char path[200];
+    struct petition pet;
+    char response[9999];
+    int scon_i[3];
+    int scon_n;
+};
+
+int UEBs_IniciaServ(struct UEB_DataTO *dto);
+int UEBs_AcceptaConnexio(struct UEB_DataTO *dto);
+int UEBs_ServeixPeticio(struct UEB_DataTO *dto);
+int UEBs_TancaConnexio(struct UEB_DataTO *dto);
+int UEBs_HaArribatAlgunaCosa(struct UEB_DataTO *dto);
 /* int UEBs_FuncioExterna(arg1, arg2...);                                 */

@@ -17,12 +17,13 @@
 
 #include <string.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <sys/select.h>
+
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
-
+#include <netinet/in.h>
+#include <arpa/inet.h>
 /* Definició de constants, p.e.,                                          */
 
 /* #define XYZ       1500                                                 */
@@ -75,7 +76,8 @@ int TCP_CreaSockClient(const char *IPloc, int portTCPloc) {
 /*                                                                        */
 /* Retorna -1 si hi ha error; l’identificador del socket creat si tot     */
 /* va bé.                                                                 */
-int TCP_CreaSockServidor(const char *IPloc, int portTCPloc) {//Passarli strcpy(IPloc,"0.0.0.0"); i portloc = 3000;{
+int TCP_CreaSockServidor(const char *IPloc, int portTCPloc) {
+    //Passarli strcpy(IPloc,"0.0.0.0"); i portloc = 3000;{
 	int sesc;
 	if((sesc=socket(AF_INET,SOCK_STREAM,0))==-1)
 		return -1;
@@ -136,12 +138,18 @@ int TCP_DemanaConnexio(int Sck, const char *IPrem, int portTCPrem) {
 int TCP_AcceptaConnexio(int Sck, char *IPrem, int *portTCPrem)
 {
 	struct sockaddr_in adrrem;
-	int scon;
-	adrrem.sin_family=AF_INET;
-	adrrem.sin_port=htons(*portTCPrem);
-	adrrem.sin_addr.s_addr= inet_addr(IPrem);
 	socklen_t long_adrrem=sizeof(adrrem);
-    return accept(Sck,(struct sockaddr*)&adrrem, &long_adrrem);
+    adrrem.sin_family=AF_INET;
+    adrrem.sin_port=htons(*portTCPrem);
+    adrrem.sin_addr.s_addr= inet_addr(IPrem);
+    int scon = accept(Sck,(struct sockaddr*)&adrrem, &long_adrrem);
+    if (scon < 0)
+        return -1;
+    //char buffer[16];
+    //inet_ntop(AF_INET, &adrrem.sin_addr, buffer, sizeof(buffer));
+    //strcpy(IPrem, buffer);
+    //*portTCPrem = ntohs(adrrem.sin_port);
+    return scon;
 }
 
 /* Envia a través del socket TCP “connectat” d’identificador “Sck” la     */
@@ -241,23 +249,24 @@ char* TCP_ObteMissError(void) {
 /*  -1 si hi ha error;                                                    */
 /*  -2 si passa "Temps" sense que arribi res.                             */
 int TCP_HaArribatAlgunaCosaEnTemps(const int *LlistaSck, int LongLlistaSck, int Temps) {
+    //struct timeval select_wait;
+    //select_wait.tv_sec = Temps;
+    //select_wait.tv_usec = Temps*1000;
     fd_set fdset;
-    struct timeval select_wait; select_wait.tv_sec = Temps;
-    select_wait.tv_usec = Temps*1000;
-
-    int descmax = -1;
-
     FD_ZERO(&fdset);
-    for (int i = 0; i < LongLlistaSck; i++)
-        FD_SET(LlistaSck[i], &fdset);                         // marcar sockets
-    descmax = get_max_scon(LlistaSck, LongLlistaSck);  // agafar max socket
-    printf("[DEBUG] select() descmax %d\n", descmax);
-    int sockets_waiting = select(descmax + 1,              // agafar nombre de sockets esperant
-                                 &fdset,
-                                 NULL,
-                                 NULL,
-                                 &select_wait);
-    printf("[DEBUG] select() %d\n", sockets_waiting);
+    FD_SET(3, &fdset);
+    int descmax = -1;
+    for (int i = 0; i < 3; i++) {
+        if (LlistaSck[i] != -1) {
+            FD_SET(LlistaSck[i], &fdset);
+            descmax = (descmax  >LlistaSck[i] ? descmax : LlistaSck[i]);
+        }
+    }
+// marcar sockets
+    //descmax = get_max_scon(LlistaSck, LongLlistaSck);  // agafar max socket
+    //printf("[DEBUG] select() descmax %d\n", descmax);
+    int sockets_waiting = select(descmax + 1, &fdset, NULL, NULL, NULL);
+    //printf("[DEBUG] select() %d\n", sockets_waiting);
     if (sockets_waiting == -1) {
         printf("%d", errno);
         return -1;
@@ -271,16 +280,7 @@ int TCP_HaArribatAlgunaCosaEnTemps(const int *LlistaSck, int LongLlistaSck, int 
         if (bit != 0)
             return LlistaSck[i];
     }
-
     return -1;
-}
-
-int get_max_scon(const int *LlistaSck, int LongLlistaSck) {
-    int max = -1;
-    for (int i = 0; i < LongLlistaSck; i++)
-        if (LlistaSck[i] > max)
-            max = LlistaSck[i];
-    return max;
 }
 
 /* Si ho creieu convenient, feu altres funcions EXTERNES                  */
